@@ -6,7 +6,7 @@ import UploadModal from '../components/UploadModal';
 export default function Admin({ 
   accessToken, 
   setAccessToken, 
-  bucketList, 
+  bucketList = [], 
   onAddBucket, 
   onToggleBucket, 
   onDeleteBucket 
@@ -20,11 +20,12 @@ export default function Admin({
   const [newBucketText, setNewBucketText] = useState('');
   const [newBucketDate, setNewBucketDate] = useState('');
 
+  // SINKRONISASI SCOPE LOGIN GOOGLE DRIVE
   const login = useGoogleLogin({
     onSuccess: (tokenResponse) => {
       setAccessToken(tokenResponse.access_token);
     },
-    scope: 'https://www.googleapis.com/auth/drive.file',
+    scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive',
     onError: () => console.log('Login Gagal'),
   });
 
@@ -177,7 +178,7 @@ export default function Admin({
             </div>
           </div>
 
-          {/* MODUL BARU: MANAGE SHARED BUCKET LIST */}
+          {/* MANAGE SHARED BUCKET LIST */}
           <div className="glass-card p-6 md:p-8 rounded-3xl border border-white/10 space-y-6">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <div>
@@ -195,7 +196,7 @@ export default function Admin({
                 type="text"
                 value={newBucketText}
                 onChange={(e) => setNewBucketText(e.target.value)}
-                placeholder="Rencana baru (misal: Jalan-jalan ke Bali)..."
+                placeholder="Rencana baru (misal: Nonton Spider-Man)..."
                 className="sm:col-span-2 text-xs bg-slate-800/80 border border-white/10 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:border-amber-500/50"
               />
               <div className="flex gap-2">
@@ -229,7 +230,7 @@ export default function Admin({
                         {item.text}
                       </p>
                       <p className="text-[10px] text-slate-500 flex items-center gap-1">
-                        <Calendar className="w-3 h-3" /> Target: {item.targetDate}
+                        <Calendar className="w-3 h-3" /> Target: {item.targetDate || 'TBD'}
                       </p>
                     </div>
 

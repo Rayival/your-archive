@@ -1,78 +1,78 @@
-import React, { useState, useEffect } from 'react';
-import Navbar from './components/Navbar';
-import Home from './pages/Home';
-import Gallery from './pages/Gallery';
-import Admin from './pages/Admin';
+import React, { useState, useEffect, useCallback } from 'react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('home');
+  const [bucketList, setBucketList] = useState([]);
   const [accessToken, setAccessToken] = useState(null);
 
-  // Initial State Bucket List (Sesuai permintaan: Nonton film bareng - Completed)
-  const [bucketList, setBucketList] = useState(() => {
-    const saved = localStorage.getItem('couple_bucket_list');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
+  const fileId = import.meta.env.VITE_DRIVE_BUCKETLIST_FILE_ID;
+  const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
+
+  // 1. FETCH DATA DARI GOOGLE DRIVE API (Dipanggil saat web dibuka)
+  const fetchBucketListFromDrive = useCallback(async () => {
+    if (!fileId || !apiKey) return;
+    try {
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setBucketList(data);
       }
+    } catch (err) {
+      console.error("Gagal mengambil data bucketlist dari Drive:", err);
     }
-    return [
-      { id: 1, text: 'Nonton film bareng', targetDate: '2026-03-15', done: true }
-    ];
-  });
+  }, [fileId, apiKey]);
 
-  // Simpan ke localStorage setiap ada perubahan
   useEffect(() => {
-    localStorage.setItem('couple_bucket_list', JSON.stringify(bucketList));
-  }, [bucketList]);
+    fetchBucketListFromDrive();
+  }, [fetchBucketListFromDrive]);
 
-  // Fungsi Kelola Bucket List
-  const addBucketItem = (text, targetDate) => {
+  // 2. SIMPAN/UPDATE DATA KE GOOGLE DRIVE API
+  const saveBucketListToDrive = async (newList) => {
+    setBucketList(newList); // Update state lokal cepat
+
+    if (!accessToken || !fileId) return;
+
+    try {
+      await fetch(
+        `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(newList),
+        }
+      );
+    } catch (err) {
+      console.error("Gagal memperbarui file di Drive:", err);
+    }
+  };
+
+  // 3. FUNGSI HANDLER UNTUK DI-PASS KE ADMIN
+  const handleAddBucket = (text, targetDate) => {
     const newItem = {
-      id: Date.now(),
+      id: Date.now().toString(),
       text,
-      targetDate: targetDate || 'Belum di-set',
-      done: false
+      targetDate: targetDate || 'TBD',
+      done: false,
     };
-    setBucketList([newItem, ...bucketList]);
+    const updated = [...bucketList, newItem];
+    saveBucketListToDrive(updated);
   };
 
-  const toggleBucketItem = (id) => {
-    setBucketList(bucketList.map(item => 
+  const handleToggleBucket = (id) => {
+    const updated = bucketList.map((item) =>
       item.id === id ? { ...item, done: !item.done } : item
-    ));
+    );
+    saveBucketListToDrive(updated);
   };
 
-  const deleteBucketItem = (id) => {
-    setBucketList(bucketList.filter(item => item.id !== id));
+  const handleDeleteBucket = (id) => {
+    const updated = bucketList.filter((item) => item.id !== id);
+    saveBucketListToDrive(updated);
   };
 
-  return (
-    <div className="min-h-screen text-slate-100 font-sans pb-12">
-      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
-
-      <main className="max-w-5xl mx-auto px-4 pt-6">
-        {activeTab === 'home' && (
-          <Home 
-            onNavigate={setActiveTab} 
-            bucketList={bucketList}
-            onToggleBucket={toggleBucketItem}
-          />
-        )}
-        {activeTab === 'gallery' && <Gallery />}
-        {activeTab === 'admin' && (
-          <Admin 
-            accessToken={accessToken} 
-            setAccessToken={setAccessToken}
-            bucketList={bucketList}
-            onAddBucket={addBucketItem}
-            onToggleBucket={toggleBucketItem}
-            onDeleteBucket={deleteBucketItem}
-          />
-        )}
-      </main>
-    </div>
-  );
+  // ... kembalikan JSX App kamu dengan mempassing handler di atas ke Admin & Home
 }
