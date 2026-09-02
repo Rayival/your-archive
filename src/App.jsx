@@ -1,25 +1,47 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import Navbar from './components/Navbar';
+import Home from './pages/Home';
+import Admin from './pages/Admin';
+import Gallery from './pages/Gallery';
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState('home');
   const [bucketList, setBucketList] = useState([]);
   const [accessToken, setAccessToken] = useState(null);
 
   const fileId = import.meta.env.VITE_DRIVE_BUCKETLIST_FILE_ID;
   const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
 
-  // 1. FETCH DATA DARI GOOGLE DRIVE API (Dipanggil saat web dibuka)
+  // 1. FETCH DATA DARI GOOGLE DRIVE
   const fetchBucketListFromDrive = useCallback(async () => {
-    if (!fileId || !apiKey) return;
+    if (!fileId) return;
+
     try {
-      const res = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`
-      );
+      const directDownloadUrl = `https://docs.google.com/uc?export=download&id=${fileId}&t=${Date.now()}`;
+      let res = await fetch(directDownloadUrl);
+
+      if (!res.ok && apiKey) {
+        res = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`
+        );
+      }
+
       if (res.ok) {
         const data = await res.json();
-        setBucketList(data);
+        if (Array.isArray(data)) {
+          setBucketList(data);
+        }
       }
     } catch (err) {
       console.error("Gagal mengambil data bucketlist dari Drive:", err);
+      setBucketList([
+        {
+          id: "1",
+          text: "Nonton Spider-Man: Beyond the Spider-Verse",
+          targetDate: "2026-12-31",
+          done: false,
+        }
+      ]);
     }
   }, [fileId, apiKey]);
 
@@ -29,12 +51,15 @@ export default function App() {
 
   // 2. SIMPAN/UPDATE DATA KE GOOGLE DRIVE API
   const saveBucketListToDrive = async (newList) => {
-    setBucketList(newList); // Update state lokal cepat
+    setBucketList(newList);
 
-    if (!accessToken || !fileId) return;
+    if (!accessToken || !fileId) {
+      console.warn("Simpan ke Drive butuh Login Admin (Access Token).");
+      return;
+    }
 
     try {
-      await fetch(
+      const res = await fetch(
         `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
         {
           method: 'PATCH',
@@ -45,12 +70,16 @@ export default function App() {
           body: JSON.stringify(newList),
         }
       );
+
+      if (!res.ok) {
+        alert("Gagal memperbarui file di Google Drive. Cek kembali login Admin.");
+      }
     } catch (err) {
       console.error("Gagal memperbarui file di Drive:", err);
     }
   };
 
-  // 3. FUNGSI HANDLER UNTUK DI-PASS KE ADMIN
+  // 3. HANDLER BUCKET LIST
   const handleAddBucket = (text, targetDate) => {
     const newItem = {
       id: Date.now().toString(),
@@ -74,5 +103,28 @@ export default function App() {
     saveBucketListToDrive(updated);
   };
 
-  // ... kembalikan JSX App kamu dengan mempassing handler di atas ke Admin & Home
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
+
+      <main className="p-4 sm:p-6 max-w-6xl mx-auto">
+        {activeTab === 'home' && (
+          <Home onNavigate={setActiveTab} bucketList={bucketList} />
+        )}
+
+        {activeTab === 'admin' && (
+          <Admin
+            accessToken={accessToken}
+            setAccessToken={setAccessToken}
+            bucketList={bucketList}
+            onAddBucket={handleAddBucket}
+            onToggleBucket={handleToggleBucket}
+            onDeleteBucket={handleDeleteBucket}
+          />
+        )}
+
+        {activeTab === 'gallery' && <Gallery />}
+      </main>
+    </div>
+  );
 }
